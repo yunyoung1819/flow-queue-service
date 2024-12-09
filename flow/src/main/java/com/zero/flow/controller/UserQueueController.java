@@ -2,6 +2,7 @@ package com.zero.flow.controller;
 
 import com.zero.flow.dto.AllowUserResponse;
 import com.zero.flow.dto.AllowedUserResponse;
+import com.zero.flow.dto.RankNumberResponse;
 import com.zero.flow.dto.RegisterUserResponse;
 import com.zero.flow.service.UserQueueService;
 import lombok.RequiredArgsConstructor;
@@ -34,5 +35,12 @@ public class UserQueueController {
                                  @RequestParam(name = "user_id") Long userId) {
        return userQueueService.isAllowed(queue, userId)
                 .map(AllowedUserResponse::new);
+    }
+
+    @GetMapping("/rank")
+    public Mono<RankNumberResponse> getRankUser(@RequestParam(name = "queue", defaultValue = "default") String queue,
+                                                @RequestParam(name = "user_id") Long userId) {
+        return userQueueService.getRank(queue, userId)
+                .map(RankNumberResponse::new);
     }
 }
