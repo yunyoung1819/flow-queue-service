@@ -11,6 +11,9 @@ import org.springframework.stereotype.Service;
 import reactor.core.publisher.Mono;
 import reactor.util.function.Tuples;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
 
 @Slf4j
@@ -61,11 +64,34 @@ public class UserQueueService {
                 .map(rank -> rank >= 0);
     }
 
+    public Mono<Boolean> isAllowedByToken(final String queue, final Long userId, final String token) {
+        return this.generateToken(queue, userId)
+                .filter(gen -> gen.equalsIgnoreCase(token))
+                .map(i -> true)
+                .defaultIfEmpty(false);
+    }
+
     // 4. 대기번호를 화면으로 전달
     public Mono<Long> getRank(final String queue, final Long userId) {
         return reactiveRedisTemplate.opsForZSet().rank(USER_QUEUE_WAIT_KEY.formatted(queue), userId.toString())
                 .defaultIfEmpty(-1L)
                 .map(rank -> rank >= 0 ? rank + 1: rank);
+    }
+
+    public Mono<String> generateToken(final String queue, final Long userId) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            var input = "user-queue-%s-%d".formatted(queue, userId);
+            byte[] encodedhash = digest.digest(input.getBytes(StandardCharsets.UTF_8));
+
+            StringBuilder hexString = new StringBuilder();
+            for (byte aByte : encodedhash) {
+                hexString.append(String.format("%02x", aByte));
+            }
+            return Mono.just(hexString.toString());
+        } catch (NoSuchAlgorithmException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     // 5. 대기열 스케쥴러
@@ -77,7 +103,7 @@ public class UserQueueService {
         }
         log.info("called scheduling...");
 
-        var maxAllowUserCount = 3L;
+        var maxAllowUserCount = 100L;
         reactiveRedisTemplate.scan(ScanOptions.scanOptions()
                 .match(USER_QUEUE_WAIT_KEY_FOR_SCAN)
                 .count(100)
